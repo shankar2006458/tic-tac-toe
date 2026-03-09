@@ -1,0 +1,1957 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic Tac Toe Arena</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            outfit: ['Outfit', 'sans-serif']
+          },
+          colors: {
+            primary: '#6366f1',
+            secondary: '#8b5cf6',
+            accent: '#f59e0b',
+            surface: {
+              light: '#ffffff',
+              dark: '#1e1b4b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { font-family: 'Outfit', sans-serif; }
+    
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.5); }
+      50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.8); }
+    }
+    
+    @keyframes draw-x-1 {
+      from { stroke-dashoffset: 100; }
+      to { stroke-dashoffset: 0; }
+    }
+    
+    @keyframes draw-x-2 {
+      from { stroke-dashoffset: 100; }
+      to { stroke-dashoffset: 0; }
+    }
+    
+    @keyframes draw-o {
+      from { stroke-dashoffset: 283; }
+      to { stroke-dashoffset: 0; }
+    }
+    
+    @keyframes confetti-fall {
+      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    
+    @keyframes thinking-dots {
+      0%, 20% { opacity: 0.3; }
+      50% { opacity: 1; }
+      80%, 100% { opacity: 0.3; }
+    }
+    
+    @keyframes timer-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+    
+    .cell-hover:hover:not(.disabled) {
+      transform: scale(1.05);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+    }
+    
+    .winning-cell {
+      animation: pulse-glow 1s infinite;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.3)) !important;
+    }
+    
+    .x-mark line:nth-child(1) {
+      stroke-dasharray: 100;
+      animation: draw-x-1 0.3s ease-out forwards;
+    }
+    
+    .x-mark line:nth-child(2) {
+      stroke-dasharray: 100;
+      animation: draw-x-2 0.3s ease-out 0.1s forwards;
+      stroke-dashoffset: 100;
+    }
+    
+    .o-mark circle {
+      stroke-dasharray: 283;
+      animation: draw-o 0.4s ease-out forwards;
+    }
+    
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      animation: confetti-fall 3s ease-out forwards;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    
+    .thinking-dot {
+      animation: thinking-dots 1.4s infinite;
+    }
+    .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+    
+    .timer-warning {
+      animation: timer-pulse 0.5s infinite;
+      color: #ef4444 !important;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+    }
+    
+    .btn-secondary {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      transition: all 0.3s ease;
+    }
+    
+    .btn-secondary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4);
+    }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .dark .glass-card {
+      background: rgba(30, 27, 75, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Mobile responsive selects and inputs */
+    @media (max-width: 640px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    }
+    
+    .mode-card {
+      transition: all 0.3s ease;
+    }
+    
+    .mode-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+    }
+    
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900">
+  <div id="app" class="h-full w-full overflow-auto">
+   <!-- Landing Screen -->
+   <div id="landing-screen" class="screen active flex-col items-center justify-center min-h-full p-4">
+    <div class="text-center mb-8 fade-in">
+     <h1 id="main-title" class="text-5xl md:text-6xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">Tic Tac Toe Arena</h1>
+     <p class="text-gray-400 text-lg">Choose your battle mode</p>
+    </div><!-- Stats Button --> <button id="stats-btn" class="fixed top-4 left-4 p-3 rounded-full glass-card shadow-lg hover:scale-110 transition-transform z-50" aria-label="View stats">
+     <svg class="w-6 h-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+     </svg></button> <!-- Mode Selection Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full px-4">
+     <!-- Local Mode -->
+     <div class="mode-card glass-card rounded-2xl p-6 cursor-pointer fade-in" style="animation-delay: 0.1s" onclick="startLocalGame()">
+      <div class="text-center">
+       <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center">
+        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+       </div>
+       <h3 class="text-xl font-semibold text-gray-200 mb-2">Local Mode</h3>
+       <p class="text-gray-400 text-sm">Play with a friend on the same device</p>
+      </div>
+     </div><!-- Bot Mode -->
+     <div class="mode-card glass-card rounded-2xl p-6 cursor-pointer fade-in" style="animation-delay: 0.2s" onclick="showBotSettings()">
+      <div class="text-center">
+       <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center">
+        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+       </div>
+       <h3 class="text-xl font-semibold text-gray-200 mb-2">Play vs Bot</h3>
+       <p class="text-gray-400 text-sm">Challenge the AI at various difficulties</p>
+      </div>
+     </div><!-- Online Mode -->
+     <div class="mode-card glass-card rounded-2xl p-6 cursor-pointer fade-in" style="animation-delay: 0.3s" onclick="showOnlineOptions()">
+      <div class="text-center">
+       <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
+        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+        </svg>
+       </div>
+       <h3 class="text-xl font-semibold text-gray-200 mb-2">Online Multiplayer</h3>
+       <p class="text-gray-400 text-sm">Create or join a room to play online</p>
+      </div>
+     </div>
+    </div><!-- Settings Section -->
+    <div class="mt-8 flex flex-wrap justify-center gap-3 fade-in" style="animation-delay: 0.4s">
+     <div class="glass-card rounded-xl px-3 py-2 flex items-center gap-2">
+      <label class="text-gray-300 text-xs font-medium">Board:</label> <select id="board-size" class="bg-gray-800 text-gray-100 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"> <option value="3">3×3</option> <option value="4">4×4</option> <option value="5">5×5</option> </select>
+     </div>
+     <div class="glass-card rounded-xl px-3 py-2 flex items-center gap-2">
+      <label class="text-gray-300 text-xs font-medium">Timer:</label> <select id="timer-setting" class="bg-gray-800 text-gray-100 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"> <option value="0">Off</option> <option value="10">10s</option> <option value="15">15s</option> <option value="30">30s</option> </select>
+     </div>
+     <div class="glass-card rounded-xl px-3 py-2 flex items-center gap-2">
+      <label class="text-gray-300 text-xs font-medium">Sound:</label> <button id="sound-toggle" class="w-8 h-5 rounded-full bg-indigo-500 relative transition-colors" aria-label="Toggle sound"> <span class="absolute w-3 h-3 bg-white rounded-full top-1 left-5 transition-transform"></span> </button>
+     </div>
+    </div>
+   </div><!-- Bot Settings Modal -->
+   <div id="bot-settings-screen" class="screen flex-col items-center justify-center min-h-full p-4">
+    <div class="glass-card rounded-3xl p-8 max-w-md w-full fade-in">
+     <h2 class="text-2xl font-bold text-center text-gray-800 dark:text-white mb-6">Bot Settings</h2>
+     <div class="mb-6">
+      <label class="block text-gray-700 dark:text-gray-300 text-sm font-medium mb-3">Choose Your Symbol</label>
+      <div class="flex gap-4 justify-center">
+       <button id="choose-x" class="w-20 h-20 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-3xl font-bold transition-transform hover:scale-105 ring-4 ring-indigo-400" onclick="selectSymbol('X')">X</button> <button id="choose-o" class="w-20 h-20 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-3xl font-bold transition-transform hover:scale-105" onclick="selectSymbol('O')">O</button>
+      </div>
+     </div>
+     <div class="mb-6">
+      <label class="block text-gray-700 dark:text-gray-300 text-sm font-medium mb-3">Difficulty Level</label>
+      <div class="space-y-2">
+       <button class="difficulty-btn w-full py-3 rounded-xl bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium transition-all hover:scale-102 ring-2 ring-green-400" data-difficulty="easy" onclick="selectDifficulty('easy')"> 🌱 Easy - Random moves </button> <button class="difficulty-btn w-full py-3 rounded-xl bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 font-medium transition-all hover:scale-102" data-difficulty="medium" onclick="selectDifficulty('medium')"> ⚡ Medium - Basic strategy </button> <button class="difficulty-btn w-full py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-medium transition-all hover:scale-102" data-difficulty="hard" onclick="selectDifficulty('hard')"> 🔥 Hard - Minimax AI </button>
+      </div>
+     </div>
+     <div class="flex gap-4">
+      <button class="flex-1 py-3 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium transition-all hover:scale-102" onclick="goToLanding()">Back</button> <button class="flex-1 py-3 rounded-xl btn-primary text-white font-medium" onclick="startBotGame()">Start Game</button>
+     </div>
+    </div>
+   </div><!-- Online Options Modal -->
+   <div id="online-options-screen" class="screen flex-col items-center justify-center min-h-full p-4">
+    <div class="glass-card rounded-3xl p-8 max-w-md w-full fade-in">
+     <h2 class="text-2xl font-bold text-center text-gray-800 dark:text-white mb-6">Online Multiplayer</h2>
+     <div class="space-y-4">
+      <button class="w-full py-4 rounded-xl btn-primary text-white font-medium flex items-center justify-center gap-3" onclick="createRoom()">
+       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+       </svg> Create Room </button>
+      <div class="relative">
+       <div class="absolute inset-0 flex items-center">
+        <div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+       </div>
+       <div class="relative flex justify-center text-sm">
+        <span class="px-4 bg-white dark:bg-slate-900/50 text-gray-500">or</span>
+       </div>
+      </div>
+      <div>
+       <label class="block text-gray-700 dark:text-gray-300 text-sm font-medium mb-2">Enter Room Code</label> <input type="text" id="room-code-input" maxlength="6" placeholder="XXXXXX" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white text-center text-2xl font-mono uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div><button class="w-full py-4 rounded-xl btn-secondary text-white font-medium flex items-center justify-center gap-3" onclick="joinRoom()">
+       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+       </svg> Join Room </button>
+     </div><button class="w-full mt-6 py-3 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium transition-all hover:scale-102" onclick="goToLanding()">Back</button>
+    </div>
+   </div><!-- Waiting Room -->
+   <div id="waiting-room-screen" class="screen flex-col items-center justify-center min-h-full p-4">
+    <div class="glass-card rounded-3xl p-8 max-w-md w-full fade-in text-center">
+     <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+      <svg class="w-10 h-10 text-white animate-pulse" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+     </div>
+     <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Waiting for Opponent</h2>
+     <p class="text-gray-600 dark:text-gray-400 mb-6">Share this room code with your friend</p>
+     <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 mb-6">
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Room Code</p>
+      <div class="flex items-center justify-center gap-3">
+       <span id="display-room-code" class="text-4xl font-mono font-bold text-indigo-600 dark:text-indigo-400 tracking-wider">ABCDEF</span> <button id="copy-code-btn" class="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:scale-110 transition-transform" onclick="copyRoomCode()" aria-label="Copy room code">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+        </svg></button>
+      </div>
+     </div>
+     <div class="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 mb-6">
+      <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></div>
+      <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 0.1s"></div>
+      <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 0.2s"></div>
+     </div><button class="w-full py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium transition-all hover:scale-102" onclick="leaveRoom()">Leave Room</button>
+    </div>
+   </div><!-- Game Screen -->
+   <div id="game-screen" class="screen flex-col items-center justify-start min-h-full p-4 pt-8">
+    <!-- Game Header -->
+    <div class="w-full max-w-lg mb-6">
+     <div class="flex items-center justify-between mb-4">
+      <button class="p-2 rounded-xl glass-card hover:scale-110 transition-transform" onclick="exitGame()" aria-label="Exit game">
+       <svg class="w-6 h-6 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+       </svg></button>
+      <h2 id="game-title" class="text-xl font-bold text-gray-800 dark:text-white">Local Match</h2>
+      <div id="timer-display" class="hidden p-2 px-4 rounded-xl glass-card font-mono font-bold text-lg text-gray-800 dark:text-white">
+       10
+      </div>
+     </div><!-- Scoreboard -->
+     <div class="glass-card rounded-2xl p-4">
+      <div class="flex justify-between items-center">
+       <div class="text-center flex-1">
+        <p id="player-x-name" class="text-sm text-gray-600 dark:text-gray-400 mb-1">Player X</p>
+        <p id="score-x" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">0</p>
+       </div>
+       <div class="text-center px-4">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Draw</p>
+        <p id="score-draw" class="text-2xl font-bold text-gray-500">0</p>
+       </div>
+       <div class="text-center flex-1">
+        <p id="player-o-name" class="text-sm text-gray-600 dark:text-gray-400 mb-1">Player O</p>
+        <p id="score-o" class="text-2xl font-bold text-purple-600 dark:text-purple-400">0</p>
+       </div>
+      </div>
+     </div>
+    </div>
+    <!-- Player Role Badge -->
+    <div id="player-role" class="hidden glass-card rounded-xl px-6 py-2 mb-4 fade-in text-center">
+      <p class="text-sm text-gray-400">Your symbol</p>
+      <p id="player-role-text" class="text-xl font-bold text-indigo-400">X</p>
+    </div>
+    <!-- Turn Indicator -->
+    <div id="turn-indicator" class="glass-card rounded-xl px-6 py-3 mb-6 fade-in">
+     <p class="text-lg font-medium text-gray-800 dark:text-white"><span id="current-player">Player X</span>'s Turn</p>
+    </div><!-- Bot Thinking Indicator -->
+    <div id="bot-thinking" class="hidden glass-card rounded-xl px-6 py-3 mb-6 fade-in">
+     <p class="text-lg font-medium text-gray-800 dark:text-white flex items-center gap-2">Bot is thinking <span class="thinking-dot">.</span> <span class="thinking-dot">.</span> <span class="thinking-dot">.</span></p>
+    </div><!-- Game Board -->
+    <div id="game-board" class="grid gap-3 mb-6">
+     <!-- Cells generated by JavaScript -->
+    </div><!-- Game Result -->
+    <div id="game-result" class="hidden glass-card rounded-2xl p-6 text-center mb-6 fade-in">
+     <h3 id="result-text" class="text-2xl font-bold text-gray-800 dark:text-white mb-4">Player X Wins!</h3>
+     <div class="flex gap-4 justify-center">
+      <button class="px-6 py-3 rounded-xl btn-primary text-white font-medium" onclick="restartGame()">Play Again</button> <button class="px-6 py-3 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium" onclick="exitGame()">Exit</button>
+     </div>
+    </div><!-- Restart Button --> <button id="restart-btn" class="px-8 py-3 rounded-xl btn-secondary text-white font-medium" onclick="restartGame()"> Restart Game </button>
+   </div><!-- Stats Modal -->
+   <div id="stats-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div class="glass-card rounded-3xl p-8 max-w-md w-full fade-in">
+     <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Your Stats</h2><button class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" onclick="closeStats()" aria-label="Close stats">
+       <svg class="w-6 h-6 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+       </svg></button>
+     </div>
+     <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="bg-indigo-100 dark:bg-indigo-900/30 rounded-xl p-4 text-center">
+       <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400" id="stat-total">0</p>
+       <p class="text-sm text-gray-600 dark:text-gray-400">Total Games</p>
+      </div>
+      <div class="bg-green-100 dark:bg-green-900/30 rounded-xl p-4 text-center">
+       <p class="text-3xl font-bold text-green-600 dark:text-green-400" id="stat-wins">0</p>
+       <p class="text-sm text-gray-600 dark:text-gray-400">Wins</p>
+      </div>
+      <div class="bg-red-100 dark:bg-red-900/30 rounded-xl p-4 text-center">
+       <p class="text-3xl font-bold text-red-600 dark:text-red-400" id="stat-losses">0</p>
+       <p class="text-sm text-gray-600 dark:text-gray-400">Losses</p>
+      </div>
+      <div class="bg-yellow-100 dark:bg-yellow-900/30 rounded-xl p-4 text-center">
+       <p class="text-3xl font-bold text-yellow-600 dark:text-yellow-400" id="stat-draws">0</p>
+       <p class="text-sm text-gray-600 dark:text-gray-400">Draws</p>
+      </div>
+     </div>
+     <div class="bg-purple-100 dark:bg-purple-900/30 rounded-xl p-4 text-center">
+      <p class="text-4xl font-bold text-purple-600 dark:text-purple-400" id="stat-winrate">0%</p>
+      <p class="text-sm text-gray-600 dark:text-gray-400">Win Rate</p>
+     </div><button class="w-full mt-6 py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium transition-all hover:scale-102" onclick="resetStats()">Reset Stats</button>
+    </div>
+   </div><!-- Toast Notification -->
+   <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl bg-gray-800 text-white font-medium shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <span id="toast-message">Copied to clipboard!</span>
+   </div>
+  </div>
+
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { 
+      getFirestore, doc, setDoc, updateDoc, getDoc,
+      onSnapshot, deleteDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAr70hWJIvYARDLde0H5zX27wAmrob3mB0",
+      authDomain: "tictactoe-38b58.firebaseapp.com",
+      projectId: "tictactoe-38b58",
+      storageBucket: "tictactoe-38b58.firebasestorage.app",
+      messagingSenderId: "30870219074",
+      appId: "1:30870219074:web:3c251da632b80d3c7fc0db",
+      measurementId: "G-HNM65HH3H0"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    await signInAnonymously(auth);
+
+    window.db = db;
+    window.auth = auth;
+    window.firebaseTools = {
+      doc, setDoc, updateDoc, getDoc, onSnapshot, deleteDoc
+    };
+
+    await tryReconnectRoom();
+  </script>
+
+  <script>
+    // ==================== CONFIGURATION ====================
+    const defaultConfig = {
+      game_title: 'Tic Tac Toe Arena',
+      player_x_name: 'Player X',
+      player_o_name: 'Player O',
+      primary_color: '#6366f1',
+      secondary_color: '#8b5cf6',
+      accent_color: '#f59e0b',
+      text_color: '#1f2937',
+      background_color: '#f3f4f6'
+    };
+    
+    let config = { ...defaultConfig };
+    let unsubscribeRoom = null;
+    let moveLock = false;
+    
+    // ==================== GAME STATE ====================
+    let gameState = {
+      mode: 'local', // 'local', 'bot', 'online'
+      board: [],
+      boardSize: 3,
+      currentPlayer: 'X',
+      playerSymbol: 'X',
+      botDifficulty: 'easy',
+      isGameOver: false,
+      winner: null,
+      winningCells: [],
+      scores: { X: 0, O: 0, draw: 0 },
+      timerEnabled: false,
+      timerSeconds: 10,
+      timerInterval: null,
+      currentTimer: 10,
+      soundEnabled: true,
+      roomCode: null,
+      isHost: false
+    };
+    
+    // ==================== STATS ====================
+    let stats = {
+      total: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0
+    };
+    
+    // Load stats from localStorage
+    function loadStats() {
+      const saved = localStorage.getItem('tictactoe_stats');
+      if (saved) {
+        stats = JSON.parse(saved);
+      }
+    }
+    
+    function saveStats() {
+      localStorage.setItem('tictactoe_stats', JSON.stringify(stats));
+    }
+    
+    function updateStatsDisplay() {
+      document.getElementById('stat-total').textContent = stats.total;
+      document.getElementById('stat-wins').textContent = stats.wins;
+      document.getElementById('stat-losses').textContent = stats.losses;
+      document.getElementById('stat-draws').textContent = stats.draws;
+      const winRate = stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0;
+      document.getElementById('stat-winrate').textContent = winRate + '%';
+    }
+    
+    function resetStats() {
+      stats = { total: 0, wins: 0, losses: 0, draws: 0 };
+      saveStats();
+      updateStatsDisplay();
+      showToast('Stats reset!');
+    }
+    
+    // ==================== SOUND EFFECTS ====================
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioContext();
+      }
+    }
+    
+    function playSound(type) {
+      if (!gameState.soundEnabled) return;
+      initAudio();
+      
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      switch(type) {
+        case 'click':
+          oscillator.frequency.value = 600;
+          oscillator.type = 'sine';
+          gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.1);
+          break;
+        case 'win':
+          oscillator.frequency.value = 523;
+          oscillator.type = 'sine';
+          gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          setTimeout(() => {
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.frequency.value = 659;
+            osc2.type = 'sine';
+            gain2.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc2.start();
+            osc2.stop(audioCtx.currentTime + 0.3);
+          }, 150);
+          setTimeout(() => {
+            const osc3 = audioCtx.createOscillator();
+            const gain3 = audioCtx.createGain();
+            osc3.connect(gain3);
+            gain3.connect(audioCtx.destination);
+            osc3.frequency.value = 784;
+            osc3.type = 'sine';
+            gain3.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain3.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc3.start();
+            osc3.stop(audioCtx.currentTime + 0.5);
+          }, 300);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.2);
+          break;
+        case 'draw':
+          oscillator.frequency.value = 300;
+          oscillator.type = 'triangle';
+          gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.4);
+          break;
+      }
+    }
+    
+    // ==================== UI NAVIGATION ====================
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+    
+    function goToLanding() {
+      showScreen('landing-screen');
+    }
+    
+    function showBotSettings() {
+      showScreen('bot-settings-screen');
+    }
+    
+    function showOnlineOptions() {
+      showScreen('online-options-screen');
+    }
+    
+    function showStats() {
+      updateStatsDisplay();
+      document.getElementById('stats-modal').classList.remove('hidden');
+    }
+    
+    function closeStats() {
+      document.getElementById('stats-modal').classList.add('hidden');
+    }
+    
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-message').textContent = message;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2000);
+    }
+    
+    // ==================== THEME TOGGLE ====================
+    function initTheme() {
+      // Force dark mode always
+      document.documentElement.classList.add('dark');
+    }
+    
+    // ==================== SOUND TOGGLE ====================
+    document.getElementById('sound-toggle').addEventListener('click', function () {
+      gameState.soundEnabled = !gameState.soundEnabled;
+
+      const indicator = this.querySelector('span');
+
+      if (gameState.soundEnabled) {
+        indicator.style.left = "1.25rem";
+        this.classList.add("bg-indigo-500");
+        this.classList.remove("bg-gray-400");
+      } else {
+        indicator.style.left = "0.25rem";
+        this.classList.remove("bg-indigo-500");
+        this.classList.add("bg-gray-400");
+      }
+    });
+    
+    // ==================== STATS BUTTON ====================
+    document.getElementById('stats-btn').addEventListener('click', showStats);
+    
+    // ==================== BOT SETTINGS ====================
+    let selectedSymbol = 'X';
+    let selectedDifficulty = 'easy';
+    
+    function selectSymbol(symbol) {
+      selectedSymbol = symbol;
+      const btnX = document.getElementById('choose-x');
+      const btnO = document.getElementById('choose-o');
+      
+      if (symbol === 'X') {
+        btnX.classList.add('bg-gradient-to-br', 'from-indigo-500', 'to-purple-600', 'text-white', 'ring-4', 'ring-indigo-400');
+        btnX.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+        btnO.classList.remove('bg-gradient-to-br', 'from-indigo-500', 'to-purple-600', 'text-white', 'ring-4', 'ring-indigo-400');
+        btnO.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+      } else {
+        btnO.classList.add('bg-gradient-to-br', 'from-indigo-500', 'to-purple-600', 'text-white', 'ring-4', 'ring-indigo-400');
+        btnO.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+        btnX.classList.remove('bg-gradient-to-br', 'from-indigo-500', 'to-purple-600', 'text-white', 'ring-4', 'ring-indigo-400');
+        btnX.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+      }
+    }
+    
+    function selectDifficulty(difficulty) {
+      selectedDifficulty = difficulty;
+      document.querySelectorAll('.difficulty-btn').forEach(btn => {
+        btn.classList.remove('ring-2');
+        if (btn.dataset.difficulty === difficulty) {
+          btn.classList.add('ring-2');
+        }
+      });
+    }
+    
+    // ==================== GAME INITIALIZATION ====================
+    function initBoard() {
+      const size = gameState.boardSize;
+
+      document.querySelectorAll('.winning-cell').forEach(c => c.classList.remove('winning-cell'));
+      
+      moveLock = false;
+
+      gameState.board = Array(size * size).fill(null);
+      gameState.currentPlayer = 'X';
+      gameState.isGameOver = false;
+      gameState.winner = null;
+      gameState.winningCells = [];
+      
+      renderBoard();
+      updateTurnIndicator();
+      document.getElementById('timer-display').classList.remove('timer-warning');
+      
+      document.getElementById('game-result').classList.add('hidden');
+      document.getElementById('turn-indicator').classList.remove('hidden');
+      document.getElementById('bot-thinking').classList.add('hidden');
+      
+      // If bot goes first
+      if (gameState.mode === 'bot' && gameState.playerSymbol === 'O') {
+        setTimeout(makeBotMove, 500);
+      }
+    }
+    
+    function renderBoard() {
+      const board = document.getElementById('game-board');
+      const size = gameState.boardSize;
+      
+      // Set grid size
+      const cellSize =
+      size === 3
+      ? 'w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28'
+      : size === 4
+      ? 'w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24'
+      : 'w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20';
+      board.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+      board.replaceChildren();
+      
+      for (let i = 0; i < size * size; i++) {
+        const cell = document.createElement('div');
+        cell.className = `${cellSize} glass-card rounded-xl flex items-center justify-center transition-all duration-200`;
+        if (gameState.board[i] === null && !gameState.isGameOver && !gameState.winner) {
+          cell.classList.add('cursor-pointer','cell-hover');
+        }
+        cell.dataset.index = i;
+        if (gameState.board[i] === null && !gameState.isGameOver) {
+          cell.onclick = () => handleCellClick(i);
+        }
+        cell.setAttribute('role', 'button');
+        if (gameState.board[i] === null && !gameState.isGameOver) {
+          cell.setAttribute('tabindex', '0');
+        } else {
+          cell.setAttribute('tabindex', '-1');
+        }
+        cell.setAttribute('aria-label', `Cell ${i + 1}`);
+        
+        if (gameState.board[i]) {
+          cell.innerHTML = createMark(gameState.board[i]);
+          cell.classList.add('disabled');
+        }
+        
+        board.appendChild(cell);
+      }
+    }
+    
+    function createMark(player) {
+      if (player === 'X') {
+        return `
+          <svg class="x-mark w-12 h-12 md:w-16 md:h-16" viewBox="0 0 100 100">
+            <line x1="20" y1="20" x2="80" y2="80" stroke="#6366f1" stroke-width="12" stroke-linecap="round"/>
+            <line x1="80" y1="20" x2="20" y2="80" stroke="#6366f1" stroke-width="12" stroke-linecap="round"/>
+          </svg>
+        `;
+      } else {
+        return `
+          <svg class="o-mark w-12 h-12 md:w-16 md:h-16" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="35" fill="none" stroke="#8b5cf6" stroke-width="12"/>
+          </svg>
+        `;
+      }
+    }
+    
+    function updateTurnIndicator() {
+      const playerName = gameState.currentPlayer === 'X' ? 
+        (config.player_x_name || defaultConfig.player_x_name) : 
+        (config.player_o_name || defaultConfig.player_o_name);
+
+      let label = playerName;
+
+      if (gameState.mode === "online") {
+        label += ` (${gameState.currentPlayer})`;
+      }
+
+      document.getElementById('current-player').textContent = label;
+    }
+    
+    function updateScoreboard() {
+      document.getElementById('score-x').textContent = gameState.scores.X;
+      document.getElementById('score-o').textContent = gameState.scores.O;
+      document.getElementById('score-draw').textContent = gameState.scores.draw;
+    }
+    
+    // ==================== GAME LOGIC ====================
+    function handleCellClick(index) {
+
+      if (moveLock || gameState.isGameOver || gameState.board[index] !== null) return;
+
+      if (gameState.mode === "online") {
+        if (gameState.currentPlayer !== gameState.playerSymbol) return;
+        if (!gameState.roomCode) return;
+      }
+
+      // Bot turn protection
+      if (gameState.mode === 'bot' && gameState.currentPlayer !== gameState.playerSymbol) return;
+
+      // Bot thinking protection
+      if (gameState.mode === 'bot' && !document.getElementById('bot-thinking').classList.contains('hidden')) return;
+
+      makeMove(index);
+    }
+    
+    async function makeMove(index) {
+      if (moveLock) return;
+      
+      if (gameState.board[index] !== null || gameState.isGameOver) return;
+      if (gameState.mode === 'online' && !gameState.playerSymbol) return;
+
+      moveLock = true;
+
+      if (gameState.mode === "online") {
+        if (gameState.currentPlayer !== gameState.playerSymbol || gameState.isGameOver) {
+          moveLock = false;
+          return;
+        }
+      }
+      
+      playSound('click');
+      gameState.board[index] = gameState.currentPlayer;
+      renderBoard();
+    
+
+      // Online sync
+      if (gameState.mode === "online") {
+
+        try {
+          const { doc, updateDoc } = window.firebaseTools;
+          const db = window.db;
+          const roomRef = doc(db, "rooms", gameState.roomCode);
+
+          const result = checkGameEnd();
+
+          if (result) {
+            await updateDoc(roomRef, {
+              board: gameState.board,
+              winner: result.winner,
+              winningLine: result.line || null,
+              status: "finished"
+            });
+          } else {
+            await updateDoc(roomRef, {
+              board: gameState.board,
+              currentPlayer: gameState.currentPlayer === "X" ? "O" : "X"
+            });
+          }
+
+        } finally {
+          moveLock = false;
+        }
+
+        return;
+      }
+      
+      // Check for win/draw
+      const result = checkGameEnd();
+      
+      if (result) {
+        handleGameEnd(result);
+      } else {
+        // Switch player
+        gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
+        updateTurnIndicator();
+
+        if (gameState.timerEnabled) {
+          clearInterval(gameState.timerInterval);
+          startTimer();
+        }
+        
+        // Bot move
+        if (gameState.mode === 'bot' && gameState.currentPlayer !== gameState.playerSymbol) {
+          document.getElementById('turn-indicator').classList.add('hidden');
+          document.getElementById('bot-thinking').classList.remove('hidden');
+          setTimeout(makeBotMove, 600 + Math.random() * 600);
+        }
+
+        moveLock = false;
+      }
+    }
+    
+    function checkGameEnd() {
+      const size = gameState.boardSize;
+      const board = gameState.board;
+      const winLength = size === 3 ? 3 : size === 4 ? 4 : 4; // 4 in a row for 4x4 and 5x5
+      
+      // Generate winning lines
+      const lines = [];
+      
+      // Rows
+      for (let row = 0; row < size; row++) {
+        for (let col = 0; col <= size - winLength; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push(row * size + col + i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Columns
+      for (let col = 0; col < size; col++) {
+        for (let row = 0; row <= size - winLength; row++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Diagonals (top-left to bottom-right)
+      for (let row = 0; row <= size - winLength; row++) {
+        for (let col = 0; col <= size - winLength; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col + i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Diagonals (top-right to bottom-left)
+      for (let row = 0; row <= size - winLength; row++) {
+        for (let col = winLength - 1; col < size; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col - i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Check for winner
+      for (const line of lines) {
+        const values = line.map(i => board[i]);
+        if (values[0] && values.every(v => v === values[0])) {
+          gameState.winningCells = line;
+          return { winner: values[0], line };
+        }
+      }
+      
+      // Check for draw
+      if (board.every(cell => cell !== null)) {
+        return { winner: 'draw' };
+      }
+      
+      return null;
+    }
+    
+    function handleGameEnd(result) {
+      if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+      }
+
+      gameState.isGameOver = true;
+      moveLock = true;
+      gameState.winner = result.winner;
+      
+      // Highlight winning cells
+      if (result.line) {
+        result.line.forEach(index => {
+          const cell = document.querySelector(`[data-index="${index}"]`);
+          if (cell) cell.classList.add('winning-cell');
+        });
+      }
+      
+      // Update scores and stats
+      if (result.winner === 'draw') {
+        gameState.scores.draw++;
+        stats.total++;
+        stats.draws++;
+        playSound('draw');
+      } else {
+        gameState.scores[result.winner]++;
+        stats.total++;
+
+        if (gameState.mode === 'bot' || gameState.mode === 'online') {
+          if (result.winner === gameState.playerSymbol) {
+            stats.wins++;
+            playSound('win');
+            createConfetti();
+          } else {
+            stats.losses++;
+            playSound('draw');
+          }
+        } else {
+          playSound('win');
+          createConfetti();
+        }
+      }
+      
+      saveStats();
+      updateScoreboard();
+      
+      // Show result
+      document.getElementById('turn-indicator').classList.add('hidden');
+      document.getElementById('bot-thinking').classList.add('hidden');
+      document.getElementById('game-result').classList.remove('hidden');
+      
+      let resultText;
+      if (result.winner === 'draw') {
+        resultText = "It's a Draw!";
+      } else {
+        const winnerName = result.winner === 'X' ? 
+          (config.player_x_name || defaultConfig.player_x_name) : 
+          (config.player_o_name || defaultConfig.player_o_name);
+        resultText = `${winnerName} Wins!`;
+      }
+      document.getElementById('result-text').textContent = resultText;
+    }
+    
+    // ==================== BOT AI ====================
+    function makeBotMove() {
+      if (moveLock) return;
+      if (gameState.isGameOver) return;
+      
+      let moveIndex;
+      
+      switch (gameState.botDifficulty) {
+        case 'easy':
+          moveIndex = getRandomMove();
+          break;
+        case 'medium':
+          moveIndex = getMediumMove();
+          break;
+        case 'hard':
+          moveIndex = getMinimaxMove();
+          break;
+      }
+      
+      document.getElementById('bot-thinking').classList.add('hidden');
+      document.getElementById('turn-indicator').classList.remove('hidden');
+      
+      if (moveIndex !== undefined && moveIndex !== -1) {
+        makeMove(moveIndex);
+      }
+    }
+    
+    function getRandomMove() {
+      const available = gameState.board
+        .map((cell, index) => cell === null ? index : -1)
+        .filter(i => i !== -1);
+      if (available.length === 0) return -1;
+      return available[Math.floor(Math.random() * available.length)];
+    }
+    
+    function getMediumMove() {
+      const botSymbol = gameState.playerSymbol === 'X' ? 'O' : 'X';
+      const playerSymbol = gameState.playerSymbol;
+      
+      // Try to win
+      const winMove = findWinningMove(botSymbol);
+      if (winMove !== -1) return winMove;
+      
+      // Block player
+      const blockMove = findWinningMove(playerSymbol);
+      if (blockMove !== -1) return blockMove;
+      
+      // Take center
+      const center = Math.floor(gameState.boardSize / 2) * gameState.boardSize + Math.floor(gameState.boardSize / 2);
+      if (gameState.board[center] === null) return center;
+      
+      // Take corner
+      const corners = [0, gameState.boardSize - 1, 
+        gameState.boardSize * (gameState.boardSize - 1), 
+        gameState.boardSize * gameState.boardSize - 1];
+      const availableCorners = corners.filter(i => gameState.board[i] === null);
+      if (availableCorners.length > 0) {
+        return availableCorners[Math.floor(Math.random() * availableCorners.length)];
+      }
+      
+      return getRandomMove();
+    }
+    
+    function findWinningMove(player) {
+      const size = gameState.boardSize;
+      const winLength = size === 3 ? 3 : 4;
+      
+      for (let i = 0; i < size * size; i++) {
+        if (gameState.board[i] === null) {
+          gameState.board[i] = player;
+          const result = checkGameEnd();
+          gameState.board[i] = null;
+          
+          if (result && result.winner === player) {
+            return i;
+          }
+        }
+      }
+      return -1;
+    }
+    
+    function getMinimaxMove() {
+      const size = gameState.boardSize;
+
+      const botSymbol = gameState.playerSymbol === 'X' ? 'O' : 'X';
+      const playerSymbol = gameState.playerSymbol;
+      
+      // Depth limits based on board size (performance optimization)
+      const depthLimits = { 3: 9, 4: 4, 5: 2 };
+      const maxDepth = depthLimits[size] || 3;
+      
+      // Priority 1: Win immediately if possible
+      const winMove = findWinningMove(botSymbol);
+      if (winMove !== -1) return winMove;
+      
+      // Priority 2: Block player from winning
+      const blockMove = findWinningMove(playerSymbol);
+      if (blockMove !== -1) return blockMove;
+      
+      let bestScore = -Infinity;
+      let bestMove = -1;
+      
+      // Get prioritized moves to search (reduces branching)
+      const prioritizedMoves = getPrioritizedMoves(gameState.board, botSymbol, size);
+
+      for (const i of prioritizedMoves) {
+        if (gameState.board[i] === null) {
+          gameState.board[i] = botSymbol;
+          const score = minimax(gameState.board, 0, false, botSymbol, -Infinity, Infinity, maxDepth, size);
+          gameState.board[i] = null;
+          
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = i;
+          }
+        }
+      }
+      
+      // If no move found in prioritized, search all available
+      if (bestMove === -1) {
+        const boardSize = gameState.boardSize;
+        for (let i = 0; i < boardSize * boardSize; i++) {
+          if (gameState.board[i] === null) {
+            gameState.board[i] = botSymbol;
+            const score = minimax(gameState.board, 0, false, botSymbol, -Infinity, Infinity, maxDepth, size);
+            gameState.board[i] = null;
+            
+            if (score > bestScore) {
+              bestScore = score;
+              bestMove = i;
+            }
+          }
+        }
+      }
+      
+      // Fallback to medium strategy
+      if (bestMove === -1) {
+        return getMediumMove();
+      }
+      
+      return bestMove;
+    }
+    
+    function minimax(board, depth, isMaximizing, botSymbol, alpha, beta, maxDepth, size) {
+      const playerSymbol = botSymbol === 'X' ? 'O' : 'X';
+      const result = checkGameEndMinimax(board, size);
+      
+      // Terminal node: game over
+      if (result !== null) {
+        if (result === botSymbol) return 10000 - depth;
+        if (result === playerSymbol) return depth - 10000;
+        return 0; // Draw
+      }
+      
+      // Depth limit reached: use heuristic evaluation
+      if (depth >= maxDepth) {
+        return evaluateBoard(board, botSymbol, playerSymbol, size);
+      }
+      
+      if (isMaximizing) {
+        let maxEval = -Infinity;
+        
+        // Get prioritized moves (reduces branching factor)
+        const moves = getPrioritizedMoves(board, botSymbol, size);
+        
+        for (const i of moves) {
+          if (board[i] === null) {
+            board[i] = botSymbol;
+            const evaluation = minimax(board, depth + 1, false, botSymbol, alpha, beta, maxDepth, size);
+            board[i] = null;
+            maxEval = Math.max(maxEval, evaluation);
+            alpha = Math.max(alpha, evaluation);
+            if (beta <= alpha) break; // Alpha-beta pruning
+          }
+        }
+        return maxEval === -Infinity ? 0 : maxEval;
+      } else {
+        let minEval = Infinity;
+        
+        // Get prioritized moves (reduces branching factor)
+        const moves = getPrioritizedMoves(board, playerSymbol, size);
+        
+        for (const i of moves) {
+          if (board[i] === null) {
+            board[i] = playerSymbol;
+            const evaluation = minimax(board, depth + 1, true, botSymbol, alpha, beta, maxDepth, size);
+            board[i] = null;
+            minEval = Math.min(minEval, evaluation);
+            beta = Math.min(beta, evaluation);
+            if (beta <= alpha) break; // Alpha-beta pruning
+          }
+        }
+        return minEval === Infinity ? 0 : minEval;
+      }
+    }
+    
+    function getPrioritizedMoves(board, player, size) {
+      const boardSize = size * size;
+      const moves = [];
+      const center = Math.floor(size / 2);
+      const centerIndex = center * size + center;
+      
+      // Score each empty position
+      const scored = [];
+      for (let i = 0; i < boardSize; i++) {
+        if (board[i] === null) {
+          let score = 0;
+          const row = Math.floor(i / size);
+          const col = i % size;
+          
+          // Prefer center positions
+          const distFromCenter = Math.abs(row - center) + Math.abs(col - center);
+          score += (size - distFromCenter) * 10;
+          
+          // Prefer positions next to existing pieces
+          for (let j = 0; j < boardSize; j++) {
+            if (board[j] === player) {
+              const jRow = Math.floor(j / size);
+              const jCol = j % size;
+              const dist = Math.abs(row - jRow) + Math.abs(col - jCol);
+              if (dist <= 2) score += (3 - dist) * 5;
+            }
+          }
+          
+          scored.push({ index: i, score });
+        }
+      }
+      
+      // Sort by score descending, return top moves
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, size === 5 ? 6 : 8).map(m => m.index);
+    }
+    
+    function evaluateBoard(board, botSymbol, playerSymbol, size) {
+      let score = 0;
+      const winLength = size === 3 ? 3 : 4;
+      
+      // Check all possible lines and score them
+      const lines = [];
+      
+      // Rows
+      for (let row = 0; row < size; row++) {
+        for (let col = 0; col <= size - winLength; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push(row * size + col + i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Columns
+      for (let col = 0; col < size; col++) {
+        for (let row = 0; row <= size - winLength; row++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Diagonals (top-left to bottom-right)
+      for (let row = 0; row <= size - winLength; row++) {
+        for (let col = 0; col <= size - winLength; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col + i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Diagonals (top-right to bottom-left)
+      for (let row = 0; row <= size - winLength; row++) {
+        for (let col = winLength - 1; col < size; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col - i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Score each line with quadratic weighting
+      for (const line of lines) {
+        const values = line.map(i => board[i]);
+        const botCount = values.filter(v => v === botSymbol).length;
+        const playerCount = values.filter(v => v === playerSymbol).length;
+        
+        if (botCount > 0 && playerCount === 0) {
+          // Bot's line: quadratic scoring (3 in a row >> 3 separate 1-pieces)
+          score += Math.pow(botCount, 2.5) * 100;
+        } else if (playerCount > 0 && botCount === 0) {
+          // Player's line: defend aggressively
+          score -= Math.pow(playerCount, 2.5) * 100;
+        }
+      }
+      
+      return score;
+    }
+    
+    function checkGameEndMinimax(board, size) {
+      const winLength = size === 3 ? 3 : 4;
+      
+      // Check all lines
+      const lines = [];
+      
+      // Rows
+      for (let row = 0; row < size; row++) {
+        for (let col = 0; col <= size - winLength; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push(row * size + col + i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Columns
+      for (let col = 0; col < size; col++) {
+        for (let row = 0; row <= size - winLength; row++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Diagonals (top-left to bottom-right)
+      for (let row = 0; row <= size - winLength; row++) {
+        for (let col = 0; col <= size - winLength; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col + i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Diagonals (top-right to bottom-left)
+      for (let row = 0; row <= size - winLength; row++) {
+        for (let col = winLength - 1; col < size; col++) {
+          const line = [];
+          for (let i = 0; i < winLength; i++) {
+            line.push((row + i) * size + col - i);
+          }
+          lines.push(line);
+        }
+      }
+      
+      // Check for winner
+      for (const line of lines) {
+        const values = line.map(i => board[i]);
+        if (values[0] && values.every(v => v === values[0])) {
+          return values[0];
+        }
+      }
+      
+      // Check for draw
+      if (board.every(cell => cell !== null)) return 'draw';
+      return null;
+    }
+    
+    // ==================== TIMER ====================
+    function startTimer() {
+      if (!gameState.timerEnabled) return;
+
+      if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+      }
+            
+      gameState.currentTimer = gameState.timerSeconds;
+      document.getElementById('timer-display').classList.remove('timer-warning');
+      updateTimerDisplay();
+      
+      gameState.timerInterval = setInterval(() => {
+        gameState.currentTimer--;
+        updateTimerDisplay();
+        
+        if (gameState.currentTimer <= 0) {
+          // Time's up - switch to other player
+          handleTimeout();
+        }
+      }, 1000);
+    }
+    
+    function resetTimer() {
+      clearInterval(gameState.timerInterval);
+      gameState.timerInterval = null;
+      startTimer();
+    }
+    
+    function updateTimerDisplay() {
+      const display = document.getElementById('timer-display');
+      display.textContent = gameState.currentTimer;
+      
+      if (gameState.currentTimer <= 3) {
+        display.classList.add('timer-warning');
+      } else {
+        display.classList.remove('timer-warning');
+      }
+    }
+    
+    function handleTimeout() {
+      if (gameState.isGameOver) return;
+      clearInterval(gameState.timerInterval);
+      
+      // Auto-move for current player (random)
+      const available = gameState.board
+        .map((cell, index) => cell === null ? index : -1)
+        .filter(i => i !== -1);
+      
+      if (available.length > 0) {
+        const randomIndex = available[Math.floor(Math.random() * available.length)];
+        makeMove(randomIndex);
+      }
+    }
+    
+    // ==================== CONFETTI ====================
+    function createConfetti() {
+      const colors = ['#6366f1', '#8b5cf6', '#f59e0b', '#22c55e', '#ec4899', '#06b6d4'];
+      
+      for (let i = 0; i < 30; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.left = Math.random() * 100 + '%';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.animationDelay = Math.random() * 0.5 + 's';
+        confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        document.body.appendChild(confetti);
+        
+        setTimeout(() => {
+          if (confetti.parentNode) confetti.remove();
+        }, 3500);
+      }
+    }
+    
+    // ==================== GAME MODE HANDLERS ====================
+    function startLocalGame() {
+      document.getElementById("player-role").classList.add("hidden");
+      gameState.mode = 'local';
+      gameState.boardSize = parseInt(document.getElementById('board-size').value);
+      gameState.timerSeconds = parseInt(document.getElementById('timer-setting').value);
+      gameState.timerEnabled = gameState.timerSeconds > 0;
+      gameState.scores = { X: 0, O: 0, draw: 0 };
+      
+      document.getElementById('game-title').textContent = 'Local Match';
+      document.getElementById('player-x-name').textContent = config.player_x_name || defaultConfig.player_x_name;
+      document.getElementById('player-o-name').textContent = config.player_o_name || defaultConfig.player_o_name;
+      
+      if (gameState.timerEnabled) {
+        document.getElementById('timer-display').classList.remove('hidden');
+      } else {
+        document.getElementById('timer-display').classList.add('hidden');
+      }
+      
+      showScreen('game-screen');
+      initBoard();
+      updateScoreboard();
+      
+      if (gameState.timerEnabled) {
+        startTimer();
+      }
+    }
+    
+    function startBotGame() {
+      document.getElementById("player-role").classList.add("hidden");
+      gameState.mode = 'bot';
+      gameState.playerSymbol = selectedSymbol;
+      gameState.botDifficulty = selectedDifficulty;
+      gameState.boardSize = parseInt(document.getElementById('board-size').value);
+      gameState.timerSeconds = parseInt(document.getElementById('timer-setting').value);
+      gameState.timerEnabled = gameState.timerSeconds > 0;
+      gameState.scores = { X: 0, O: 0, draw: 0 };
+      
+      const difficultyText = selectedDifficulty.charAt(0).toUpperCase() + selectedDifficulty.slice(1);
+      document.getElementById('game-title').textContent = `vs ${difficultyText} Bot`;
+      document.getElementById('player-x-name').textContent = selectedSymbol === 'X' ? 'You' : 'Bot';
+      document.getElementById('player-o-name').textContent = selectedSymbol === 'O' ? 'You' : 'Bot';
+      
+      if (gameState.timerEnabled) {
+        document.getElementById('timer-display').classList.remove('hidden');
+      } else {
+        document.getElementById('timer-display').classList.add('hidden');
+      }
+      
+      showScreen('game-screen');
+      initBoard();
+      updateScoreboard();
+      
+      if (gameState.timerEnabled) {
+        startTimer();
+      }
+    }
+    
+    async function restartGame() {
+
+      moveLock = false;
+
+      if (gameState.mode === "online") {
+
+        const { doc, updateDoc, getDoc } = window.firebaseTools;
+        const db = window.db;
+        const roomRef = doc(db, "rooms", gameState.roomCode);
+        const snap = await getDoc(roomRef);
+
+        if (!snap.exists()) {
+          showToast("Room closed");
+          leaveRoom();
+          return;
+        }
+
+        const data = snap.data();
+        const uid = window.auth.currentUser.uid;
+
+        let rematch = data.rematch || { X:false, O:false };
+
+        if (gameState.playerSymbol === "X") rematch.X = true;
+        if (gameState.playerSymbol === "O") rematch.O = true;
+
+        await updateDoc(roomRef, { rematch });
+
+        // wait for other player
+        if (!(rematch.X && rematch.O)) {
+          showToast("Waiting for opponent rematch...");
+          return;
+        }
+
+        const size = gameState.boardSize;
+
+        await updateDoc(roomRef, {
+          board: Array(size * size).fill(null),
+          boardSize: size,
+          currentPlayer: "X",
+          winner: null,
+          winningLine: null,
+          status: "playing",
+          rematch: { X:false, O:false }
+        });
+
+        return;
+      }
+
+      // Local/Bot logic
+      if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+      }
+
+      document.querySelectorAll('.winning-cell').forEach(cell => {
+        cell.classList.remove('winning-cell');
+      });
+
+      document.getElementById('bot-thinking').classList.add('hidden');
+
+      initBoard();
+
+      if (gameState.timerEnabled) {
+        startTimer();
+      }
+    }
+    
+    function exitGame() {
+      // Clear timer
+      if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+      }
+
+      if (gameState.mode === 'online') {
+        leaveRoom();
+        return;
+      }
+      
+      goToLanding();
+    }
+    
+    // ==================== ONLINE MULTIPLAYER (DEMO) ====================
+    function generateRoomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+    
+    async function createRoom() {
+      const { doc, setDoc, getDoc } = window.firebaseTools;
+      const db = window.db;
+
+      const size = parseInt(document.getElementById('board-size').value);
+
+      let code;
+      let exists = true;
+
+      while (exists) {
+        code = generateRoomCode();
+        const testRef = doc(db, "rooms", code);
+        const snap = await getDoc(testRef);
+        exists = snap.exists();
+      }
+
+      gameState.roomCode = code;
+      localStorage.setItem("tictactoe_room", gameState.roomCode);
+      gameState.isHost = true;
+      gameState.mode = "online";
+      gameState.playerSymbol = "X";
+
+      const roomRef = doc(db, "rooms", gameState.roomCode);
+
+      await setDoc(roomRef, {
+        board: Array(size * size).fill(null),
+        boardSize: size,
+        currentPlayer: "X",
+        players: {
+          X: auth.currentUser.uid,
+          O: null
+        },
+        status: "waiting",
+        winner: null,
+        rematch: { X:false, O:false }
+      });
+
+      document.getElementById('display-room-code').textContent = gameState.roomCode;
+      showScreen('waiting-room-screen');
+
+      listenToRoom(roomRef);
+    }
+    
+    async function joinRoom() {
+      const { doc, getDoc, updateDoc } = window.firebaseTools;
+      const db = window.db;
+
+      const input = document.getElementById('room-code-input');
+      const code = input.value.trim().toUpperCase();
+      input.value = code;
+      const roomRef = doc(db, "rooms", code);
+      const snap = await getDoc(roomRef);
+
+      if (!snap.exists()) {
+        showToast("Room not found");
+        return;
+      }
+
+      const data = snap.data();
+      gameState.boardSize = data.boardSize || 3;
+
+      if (!data.players || !data.players.X) {
+        showToast("Invalid room");
+        return;
+      }
+
+      if (data.status !== "waiting") {
+        showToast("Game already started");
+        return;
+      }
+
+      if (data.players.O) {
+        showToast("Room already full");
+        return;
+      }
+
+      await updateDoc(roomRef, {
+        "players.O": auth.currentUser.uid,
+        status: "playing"
+      });
+
+      gameState.roomCode = code;
+      localStorage.setItem("tictactoe_room", code);
+      gameState.isHost = false;
+      gameState.mode = "online";
+
+      showToast("Joined room");
+      showScreen('waiting-room-screen');
+
+      listenToRoom(roomRef);
+    }
+
+    function listenToRoom(roomRef) {
+      const { onSnapshot } = window.firebaseTools;
+
+      if (unsubscribeRoom) unsubscribeRoom();
+
+      unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
+      if (!docSnap.exists()) {
+        handleOpponentLeft();
+        return;
+      }
+
+      const data = docSnap.data();
+
+        const wasGameOver = gameState.isGameOver;
+
+        if (data.board && JSON.stringify(data.board) !== JSON.stringify(gameState.board)) {
+          gameState.board = data.board;
+          renderBoard();
+        }
+        gameState.winningCells = data.winningLine || [];
+        gameState.boardSize = data.boardSize || 3;
+        if (data.currentPlayer !== gameState.currentPlayer) {
+          gameState.currentPlayer = data.currentPlayer;
+          updateTurnIndicator();
+        }
+
+        if (data.winningLine) {
+          data.winningLine.forEach(i => {
+            const cell = document.querySelector(`[data-index="${i}"]`);
+            if (cell) cell.classList.add("winning-cell");
+          });
+        }
+
+        if (data.status === "playing") {
+
+            // reset local game state for new round
+            gameState.isGameOver = false;
+            gameState.winner = null;
+            gameState.winningCells = [];
+            moveLock = false;
+
+            renderBoard();
+            updateTurnIndicator();
+
+            if (!document.getElementById('game-screen').classList.contains('active')) {
+                startOnlineGame();
+            }
+
+            document.getElementById('game-result').classList.add('hidden');
+            document.getElementById('turn-indicator').classList.remove('hidden');
+        }
+
+        if (data.status === "finished" && !wasGameOver) {
+          const result = { 
+            winner: data.winner,
+            line: data.winningLine || null
+          };
+          handleGameEnd(result);
+        }
+
+        gameState.isGameOver = data.status === "finished";
+      });
+    }
+    
+    function startOnlineGame() {
+      gameState.mode = 'online';
+      gameState.timerEnabled = false;
+      gameState.scores = { X: 0, O: 0, draw: 0 };
+      gameState.playerSymbol = gameState.isHost ? 'X' : 'O';
+      showToast(`You are playing as ${gameState.playerSymbol}`);
+      document.getElementById("player-role").classList.remove("hidden");
+      document.getElementById("player-role-text").textContent = gameState.playerSymbol;
+      gameState.isGameOver = false;
+      
+      document.getElementById('game-title').textContent = `Online - Room ${gameState.roomCode}`;
+      document.getElementById('player-x-name').textContent =
+        gameState.playerSymbol === "X" ? "You (X)" : "Opponent (X)";
+
+      document.getElementById('player-o-name').textContent =
+        gameState.playerSymbol === "O" ? "You (O)" : "Opponent (O)";
+            document.getElementById('timer-display').classList.add('hidden');
+
+      if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+      }
+      
+      showScreen('game-screen');
+
+      document.querySelectorAll('.winning-cell').forEach(c => c.classList.remove('winning-cell'));
+
+      renderBoard();
+      updateTurnIndicator();
+      updateScoreboard();
+      
+      // Monitor for opponent disconnect (demo)
+      monitorOpponentConnection();
+    }
+    
+    function monitorOpponentConnection() {
+      // In production, this would use Firestore listeners
+      // For demo, simulate opponent leaving after inactivity
+      const checkInterval = setInterval(() => {
+        if (gameState.mode !== 'online' || gameState.isGameOver) {
+          clearInterval(checkInterval);
+        }
+      }, 5000);
+    }
+    
+    function handleOpponentLeft() {
+      if (gameState.mode !== 'online') return;
+      gameState.isGameOver = true;
+      document.getElementById('turn-indicator').classList.add('hidden');
+      document.getElementById('result-text').textContent = 'Opponent Left!';
+      document.getElementById('game-result').classList.remove('hidden');
+      showToast('Opponent disconnected');
+    }
+    
+    function copyRoomCode() {
+      navigator.clipboard.writeText(gameState.roomCode).then(() => {
+        showToast('Room code copied!');
+      }).catch(() => {
+        showToast('Failed to copy');
+      });
+    }
+    
+    async function leaveRoom() {
+      if (unsubscribeRoom) {
+        unsubscribeRoom();
+        unsubscribeRoom = null;
+      }
+
+      if (gameState.isHost && gameState.roomCode) {
+        const { doc, deleteDoc } = window.firebaseTools;
+        const db = window.db;
+        if (gameState.isHost) {
+          try {
+            await deleteDoc(doc(db, "rooms", gameState.roomCode));
+          } catch(e){}
+        }
+      }
+
+      gameState.roomCode = null;
+      localStorage.removeItem("tictactoe_room");
+      gameState.mode = 'local';
+      gameState.board = [];
+      gameState.isGameOver = true;
+      gameState.winningCells = [];
+
+      document.getElementById('room-code-input').value = "";
+      
+      goToLanding();
+      showToast('Left the room');
+    }
+    
+    // ==================== ELEMENT SDK INTEGRATION ====================
+    function applyConfig() {
+      // Apply title
+      const title = config.game_title || defaultConfig.game_title;
+      document.getElementById('main-title').textContent = title;
+      
+      // Apply player names
+      const xName = config.player_x_name || defaultConfig.player_x_name;
+      const oName = config.player_o_name || defaultConfig.player_o_name;
+      
+      if (gameState.mode === 'local') {
+        document.getElementById('player-x-name').textContent = xName;
+        document.getElementById('player-o-name').textContent = oName;
+      }
+      
+      updateTurnIndicator();
+    }
+    
+    // ==================== INITIALIZATION ====================
+    loadStats();
+    initTheme();
+    
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange: async (newConfig) => {
+          config = { ...defaultConfig, ...newConfig };
+          applyConfig();
+        },
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                config.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                config.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            },
+            {
+              get: () => config.accent_color || defaultConfig.accent_color,
+              set: (value) => {
+                config.accent_color = value;
+                window.elementSdk.setConfig({ accent_color: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: undefined,
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ['game_title', config.game_title || defaultConfig.game_title],
+          ['player_x_name', config.player_x_name || defaultConfig.player_x_name],
+          ['player_o_name', config.player_o_name || defaultConfig.player_o_name]
+        ])
+      });
+    }
+
+    // Try to reconnect to room if page is reloaded
+    async function tryReconnectRoom() {
+
+    const savedRoom = localStorage.getItem("tictactoe_room");
+    if (!savedRoom) return;
+
+    const { doc, getDoc } = window.firebaseTools;
+    const db = window.db;
+
+    const roomRef = doc(db, "rooms", savedRoom);
+    const snap = await getDoc(roomRef);
+
+    if (!snap.exists()) {
+      localStorage.removeItem("tictactoe_room");
+      return;
+    }
+
+    const data = snap.data();
+
+    const uid = window.auth.currentUser.uid;
+
+    if (data.players?.X === uid) {
+      gameState.playerSymbol = "X";
+      gameState.isHost = true;
+    } else if (data.players?.O === uid) {
+      gameState.playerSymbol = "O";
+      gameState.isHost = false;
+    } else {
+      localStorage.removeItem("tictactoe_room");
+      return;
+    }
+
+    gameState.roomCode = savedRoom;
+    gameState.mode = "online";
+    gameState.boardSize = data.boardSize || 3;
+
+    showToast("Reconnected to room");
+
+    listenToRoom(roomRef);
+
+    if (data.status === "playing") {
+      startOnlineGame();
+    } else {
+      showScreen("waiting-room-screen");
+      document.getElementById('display-room-code').textContent = savedRoom;
+    }
+
+  }
+    
+    applyConfig();
+  </script>
+</html>
